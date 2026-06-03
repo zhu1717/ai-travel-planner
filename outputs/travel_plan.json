@@ -1,0 +1,127 @@
+{
+  "city": "武汉",
+  "days": 2,
+  "summary": "为您定制的武汉2日轻松美食与景点之旅，主要集中在汉口江岸区周边，步行或短途打车即可到达，适合悠闲漫步与品尝地道美食。",
+  "itinerary": [
+    {
+      "day": 1,
+      "date": "2026-06-10",
+      "theme": "江滩漫步与地道小龙虾",
+      "weather": {
+        "date": null,
+        "condition": "多云 / 小雨",
+        "temperature_range": "24-32C",
+        "travel_advice": "建议携带雨具，优先安排室内或移动距离较短的行程。",
+        "source": [
+          {
+            "title": "高德天气预报",
+            "url": "https://lbs.amap.com/",
+            "content": "武汉 2026-06-10 天气预报"
+          }
+        ]
+      },
+      "items": [
+        {
+          "name": "汉口江滩",
+          "type": "attraction",
+          "start_time": "15:00",
+          "end_time": "17:30",
+          "address": "武汉市江岸区沿江大道",
+          "location": {
+            "lat": 30.595,
+            "lng": 114.305
+          },
+          "reason": "武汉标志性景点，傍晚时分江风拂面，可欣赏长江大桥与两岸风光，距离晚餐地点很近。",
+          "source": [
+            {
+              "title": "携程攻略",
+              "url": "https://you.ctrip.com/sight/wuhan145.html",
+              "content": "汉口江滩是长江畔漫步赏江景市景的绝佳去处。"
+            }
+          ]
+        },
+        {
+          "name": "巴厘龙虾(洞庭·艺术洋房店)",
+          "type": "food",
+          "start_time": "18:00",
+          "end_time": "20:00",
+          "address": "洞庭街125号",
+          "location": {
+            "lat": 30.590025,
+            "lng": 114.302901
+          },
+          "reason": "武汉著名的小龙虾品牌，洞庭街艺术洋房店环境独特，距离汉口江滩步行可达，适合轻松享用晚餐。",
+          "source": [
+            {
+              "title": "高德地图",
+              "url": "https://lbs.amap.com/",
+              "content": "POI 来源"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-06-11",
+      "theme": "百年老街与经典鄂菜",
+      "weather": {
+        "date": null,
+        "condition": "小雨 / 多云",
+        "temperature_range": "23-26C",
+        "travel_advice": "建议携带雨具，优先安排室内或移动距离较短的行程。",
+        "source": [
+          {
+            "title": "高德天气预报",
+            "url": "https://lbs.amap.com/",
+            "content": "武汉 2026-06-11 天气预报"
+          }
+        ]
+      },
+      "items": [
+        {
+          "name": "江汉路步行街",
+          "type": "attraction",
+          "start_time": "14:00",
+          "end_time": "16:30",
+          "address": "武汉市江汉区江汉路",
+          "location": {
+            "lat": 30.583,
+            "lng": 114.288
+          },
+          "reason": "中国最长的步行街，拥有众多百年历史建筑，适合雨天漫步或进入商场室内避雨休闲。",
+          "source": [
+            {
+              "title": "携程攻略",
+              "url": "https://you.ctrip.com/sight/wuhan145.html",
+              "content": "江汉路步行街是百年商业街，品建筑扫尖货的好去处。"
+            }
+          ]
+        },
+        {
+          "name": "湖锦酒楼(三阳路店)",
+          "type": "food",
+          "start_time": "17:30",
+          "end_time": "19:30",
+          "address": "三阳路8号",
+          "location": {
+            "lat": 30.596641,
+            "lng": 114.306907
+          },
+          "reason": "武汉老牌知名酒楼，主打经典鄂菜，环境舒适，适合轻松享用晚餐，结束愉快的旅程。",
+          "source": [
+            {
+              "title": "高德地图",
+              "url": "https://lbs.amap.com/",
+              "content": "POI 来源"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "passed": true,
+    "issues": []
+  }
+}
