@@ -1,142 +1,89 @@
-# 基于 LangGraph 多智能体协作的 AI 旅行规划系统
+# AI Travel Planner
 
-## 1. 项目定位
+基于 `LangGraph` 多节点工作流的 AI 旅行规划系统，面向“城市 + 天数 + 预算 + 偏好 + 出行风格”这类结构化输入，自动生成带有天气、POI 地址、经纬度和来源信息的旅行行程。
 
-本项目是一个基于 `LangGraph` 的多节点协作式 AI 旅行规划系统，目标是在较短周期内完成一个可运行、可演示、可扩展的最小闭环版本。
+本项目参考了 `LangGraph` 官方多智能体工作流示例，并结合旅行规划场景进行了二次设计与实现。系统将“大模型规划能力”和“真实世界工具调用”结合起来，尽量减少纯文本幻觉，提升行程的可执行性。
 
-项目核心价值不在于堆叠大量 Agent 数量，而在于：
+## 项目亮点
 
-- 使用 `LangGraph` 组织清晰的任务流转
-- 使用真实世界工具补齐大模型的时效性短板
-- 使用地图坐标和地理信息提升行程的可执行性
-- 使用结构化校验降低幻觉和无效输出
+- 使用 `LangGraph` 编排旅行规划流程，包含解析、搜索、规划、校验四个核心节点
+- 接入 `Tavily Search API` 获取实时旅游攻略、景点与美食相关网页信息
+- 接入 `高德开放平台 API` 获取 POI 标准地址、经纬度和天气信息
+- 使用 `Pydantic` 约束输入输出 Schema，确保大模型输出可被程序校验
+- 在 `plan_node` 中接入阿里云百炼模型，失败时自动回退到规则版规划逻辑
+- 输出结构化 JSON，便于后续扩展前端、Markdown/PDF 导出或继续做自动重规划
 
-当前版本优先聚焦后端能力，不包含前端页面。
+## 功能概览
 
-## 2. 项目目标
+当前版本已经支持：
 
-输入一份结构化旅行需求，系统自动：
+- 根据结构化输入生成多日旅行规划
+- 查询景点、美食、购物等候选地点
+- 生成包含 `address`、`lat/lng`、`source` 的行程项
+- 生成每日天气信息与简单出行建议
+- 对最终行程执行基础业务校验
+- 将结果保存到 `outputs/travel_plan.json`
 
-- 检索当前真实世界信息
-- 查询景点或餐厅的标准地址与经纬度
-- 生成按天拆分的旅行行程
-- 补充每日天气信息
-- 对输出结果进行结构化校验
-- 在必要时触发自动修正
-
-## 3. 项目范围
-
-### 当前阶段保留
-
-- 单城市旅行规划
-- 2\~3 天行程
-- 景点 + 餐饮安排
-- Tavily 网络检索
-- 高德地图 POI / 地理编码
-- 结构化 JSON 输出
-- Python/Pydantic 规则校验
-
-### 当前阶段暂不实现
-
-- 前端页面
-- 多城市联动
-- 酒店和机票预订
-- 精细预算拆分
-- 地图可视化界面
-- 复杂用户账户系统
-
-## 4. 系统架构
-
-项目采用 `4 节点` 设计，但并不是 `4 个纯 LLM Agent`，而是将适合规则处理的部分下沉到 Python 节点。
+## 项目结构
 
 ```text
-[结构化用户输入]
-   │
-   ▼
-1. parser_node
-   - 当前方案：直接用 Python 接收结构化参数
-   - 不走 LLM，避免不必要的调用成本
-   │
-   ▼
-2. search_node
-   - 纯 Python 节点
-   - 调用 Tavily 和高德 API
-   - 获取候选景点、餐厅、POI、经纬度、地址、网页摘要、天气信息
-   │
-   ▼
-3. plan_node
-   - 强模型节点
-   - 根据用户约束、搜索结果、地理信息生成初版行程 JSON
-   │
-   ▼
-4. validation_node
-   - 混合节点
-   - 先用 Python / Pydantic 校验
-   - 若存在缺失、冲突或不合理安排，再调用强模型修正
+ai-travel-planner/
+├── .env.example
+├── .gitignore
+├── README.md
+├── check_api.py
+├── main.py
+├── requirements.txt
+├── graph/
+│   ├── nodes.py
+│   ├── state.py
+│   └── workflow.py
+├── models/
+│   └── schemas.py
+├── services/
+│   ├── amap_service.py
+│   ├── llm_service.py
+│   ├── tavily_service.py
+│   └── weather_service.py
+└── outputs/
+    └── travel_plan.json
 ```
 
-## 5. 模型分工
+各目录职责如下：
 
-推荐遵循以下思路：
+- `main.py`：统一调试入口，支持单独测试服务或运行完整工作流
+- `graph/`：LangGraph 状态定义、节点逻辑和工作流编排
+- `services/`：第三方 API 封装，包括阿里云百炼、高德、Tavily、天气服务
+- `models/`：Pydantic 数据模型，约束输入、输出和中间结构
+- `outputs/`：保存结构化旅行规划结果
 
-- `search_node` 不使用大模型，全部走 Python + HTTP 请求
-- `plan_node` 使用最强模型，负责统筹生成行程草案
-- `validation_node` 优先走规则校验，仅在失败时触发强模型修正
+## 工作流设计
 
-这样的好处是：
+系统当前采用 4 个核心节点：
 
-- 降低 token 成本
-- 降低幻觉风险
-- 提高输出可控性
-- 更容易在 5 天内完成调试
+1. `parser_node`
+   - 接收结构化输入
+   - 校验并整理为标准 `TravelInput`
+2. `search_node`
+   - 调用 Tavily 获取旅游参考信息
+   - 调用高德获取 POI、地址、经纬度和天气
+3. `plan_node`
+   - 调用阿里云百炼模型生成旅行 JSON
+   - 如果模型输出不合法，则回退到规则版计划生成
+4. `validation_node`
+   - 校验时间、字段完整性、重复项等业务规则
+   - 输出最终 `final_plan`
 
-## 6. 工具选型
+## 输入格式
 
-### Tavily Search API
-
-用途：
-
-- 获取真实世界的网页信息
-- 弥补大模型无法实时感知当前世界状态的问题
-- 用于补充景点、美食、近期公告、出行提醒等文本信息
-
-适合负责：
-
-- 热门景点和美食候选检索
-- 近期攻略或注意事项
-- 与天气、营业、临时变化相关的网页信息收集
-
-说明：
-
-- Tavily 更适合做网页事实补充，不等于官方权威数据库
-- 若后续时间允许，天气可以升级为专门天气 API
-
-### 高德开放平台 API
-
-用途：
-
-- 将景点或餐厅名称标准化为 POI
-- 获取绝对经纬度和官方地址
-- 为后续路线排序和距离控制提供可靠地理基础
-
-适合负责：
-
-- POI 搜索
-- 地理编码 / 逆地理编码
-- 距离或路线相关能力
-
-## 7. 输入格式
-
-当前项目不再使用自然语言解析作为第一阶段必要能力，而是直接采用结构化输入。
-
-示例：
+当前 `run_graph` 采用结构化输入，示例格式如下：
 
 ```json
 {
-  "city": "西安",
-  "days": 3,
+  "city": "武汉",
+  "days": 2,
   "budget": 2000,
-  "preferences": ["历史", "美食"],
+  "preferences": ["美食", "景点"],
   "travel_style": "轻松",
   "start_date": "2026-06-10"
 }
@@ -144,235 +91,174 @@
 
 字段说明：
 
-- `city`: 目标城市
-- `days`: 出行天数
-- `budget`: 总预算
-- `preferences`: 偏好标签
-- `travel_style`: 旅行节奏，如轻松、紧凑
-- `start_date`: 出发日期
+- `city`：旅行城市
+- `days`：旅行天数
+- `budget`：预算，当前主要作为上下文信息
+- `preferences`：偏好标签，例如 `美食`、`景点`、`逛街`、`博物馆`
+- `travel_style`：推荐使用 `轻松`、`适中`、`紧凑`
+- `start_date`：行程起始日期
 
-## 8. 输出格式
+## 输出格式
 
-输出采用结构化 JSON，便于：
+程序会生成结构化 JSON，主要字段包括：
 
-- 程序校验
-- 二次导出为  PDF/MarkDown
-- 后续接入前端或数据库
+- `city`
+- `days`
+- `summary`
+- `itinerary`
+- `validation`
 
-示例：
+其中 `itinerary` 中的每一天都包含：
 
-```json
-{
-  "city": "西安",
-  "days": 3,
-  "summary": "适合历史文化与美食偏好的轻松行程",
-  "itinerary": [
-    {
-      "day": 1,
-      "date": "2026-06-10",
-      "theme": "城墙与回民街",
-      "weather": {
-        "condition": "晴",
-        "temperature_range": "22-31C",
-        "travel_advice": "白天适合步行游览，注意防晒补水",
-        "source": []
-      },
-      "items": [
-        {
-          "name": "西安城墙",
-          "type": "attraction",
-          "start_time": "09:00",
-          "end_time": "11:30",
-          "address": "",
-          "location": {
-            "lat": 0,
-            "lng": 0
-          },
-          "reason": "历史地标，适合作为首日核心景点",
-          "source": []
-        }
-      ]
-    }
-  ],
-  "validation": {
-    "passed": true,
-    "issues": []
-  }
-}
+- `day`
+- `date`
+- `theme`
+- `weather`
+- `items`
+
+其中 `items` 中的每个行程项都包含：
+
+- `name`
+- `type`
+- `start_time`
+- `end_time`
+- `address`
+- `location`
+- `reason`
+- `source`
+
+## 环境准备
+
+建议使用 `Python 3.11+`。
+
+### 1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 配置环境变量
+
+复制 `.env.example` 为 `.env`：
+
+```bash
+copy .env.example .env
+```
+
+然后在 `.env` 中填入你自己的 API Key：
+
+```env
+DASHSCOPE_API_KEY="your_dashscope_api_key"
+TAVILY_API_KEY="your_tavily_api_key"
+AMAP_KEY="your_amap_key"
 ```
 
 说明：
 
-- `weather` 以“每天一份”的方式放在 `itinerary[].weather`
-- `source` 建议保留来源信息，方便解释结果来源
+- `DASHSCOPE_API_KEY`：阿里云百炼模型调用密钥
+- `TAVILY_API_KEY`：联网搜索密钥
+- `AMAP_KEY`：高德开放平台 Web 服务 Key
 
-## 9. 状态设计
+## 运行方式
 
-建议 LangGraph 的共享状态包含以下字段：
-
-```python
-state = {
-    "user_query": "",
-    "parsed_input": {},
-    "search_results": {},
-    "candidate_pois": [],
-    "draft_plan": {},
-    "validation_result": {},
-    "final_plan": {}
-}
-```
-
-可按需要逐步扩展：
-
-- `sources`
-- `errors`
-- `iteration_count`
-- `messages`
-
-## 10. 校验规则
-
-当前阶段建议至少实现以下规则：
-
-- 必须有 `city`
-- 必须有 `days`
-- 每天至少 `2~4` 个安排
-- 每个安排必须有 `name/address/lat/lng`
-- 相邻地点不能跨城
-- 单天总时长不能过长
-- 景点重复出现时要报错
-
-后续可继续补充：
-
-- 时间重叠检测
-- 同一天总移动距离过长
-- 餐饮和景点类别过于单一
-- 天气与安排冲突
-
-## 11. 为什么第一天不先接高德和 Tavily
-
-第一天的核心目标不是“把 API 调通”，而是“把项目边界、数据结构、节点职责和校验规则彻底定死”。
-
-原因：
-
-- 如果输入输出结构还没定，第二天调回来的 API 数据很容易无处安放
-- 如果状态设计没定，LangGraph 节点流转会反复推翻
-- 如果校验规则没定，强模型提示词也会不断返工
-
-因此，第一天允许使用占位值或模拟值。
-
-例如：
-
-- `address` 可暂时为空字符串
-- `lat/lng` 可临时使用 `0`
-- `weather` 可先保留空结构或模拟文本
-- `source` 可先为空数组
-
-第二天再把这些占位字段替换成真实 API 返回结果。
-
-## 12. 五天开发计划
-
-### Day 1：设计定稿
-
-目标：
-
-- 固定项目范围
-- 固定输入结构
-- 固定输出 JSON
-- 固定节点职责
-- 固定状态设计
-- 固定校验规则
-
-产出：
-
-- 本 README
-- 输入样例
-- 输出样例
-- 节点与状态说明
-
-### Day 2：工具接入
-
-目标：
-
-- 单独调通 Tavily
-- 单独调通高德
-- 明确 API 返回格式
-- 将返回结果映射到项目统一字段
-
-重点验证：
-
-- Tavily 是否能返回足够干净的文本摘要
-- 高德是否能稳定返回 POI、地址、经纬度
-- 天气数据最终走哪条通路更稳定
-
-### Day 3：LangGraph 主流程搭建
-
-目标：
-
-- 串联 `search_node -> plan_node -> validation_node`
-- 跑通最小闭环
-- 输出初版 itinerary JSON
-
-### Day 4：校验与重规划
-
-目标：
-
-- 接入 Pydantic 校验
-- 对不合法结果进行自动修正
-- 增强地理顺路性和去重逻辑
-
-### Day 5：演示打磨
-
-目标：
-
-- 准备 2\~3 个稳定案例
-- 导出 Markdown 行程单
-- 整理汇报材料和项目亮点
-
-## 13. 目录建议
-
-建议逐步整理为如下结构：
-
-```text
-travel_agent/
-├── .env
-├── README.md
-├── requirements.txt
-├── main.py
-├── graph/
-│   ├── state.py（定义全局状态）
-│   ├── nodes.py
-│   └── workflow.py（重要，学习怎么写）
-├── services/
-│   ├── tavily_service.py
-│   ├── amap_service.py
-│   └── weather_service.py
-├── models/
-│   └── schemas.py（输出字段，供pydantic检查）
-└── outputs/
-```
-
-## 14. 环境变量
-
-当前项目需要的环境变量包括：
+### 1. 测试阿里云模型连通性
 
 ```bash
-DASHSCOPE_API_KEY=your_key
-TAVILY_API_KEY=your_key
-AMAP_KEY=your_key
+python check_api.py
 ```
 
-建议：
+### 2. 单独测试高德 POI
 
-- 不要把真实密钥提交到公开仓库
-- 若仓库曾提交过真实密钥，应尽快轮换密钥
+```bash
+python main.py --mode test_amap --city 武汉
+```
 
-## 15. 当前结论
+### 3. 单独测试 Tavily 搜索
 
-本项目当前采用的策略是：
+```bash
+python main.py --mode test_tavily --city 武汉
+```
 
-- 输入直接走结构化参数
-- 搜索和地图查询全部使用 Python 工具节点
-- 强模型专注于规划与修正
-- 输出采用可校验、可扩展的 JSON 结构
+### 4. 单独测试天气
 
-这是一个非常适合在 `5 天` 内完成最小闭环复现的实现路径。
+```bash
+python main.py --mode test_weather --city 武汉 --days 2
+```
+
+### 5. 运行完整工作流
+
+```bash
+python main.py --mode run_graph
+```
+
+运行完成后，结果会保存到：
+
+```text
+outputs/travel_plan.json
+```
+
+## 当前调试方式说明
+
+当前版本中，`run_graph` 使用 `main.py` 里的 `build_sample_input()` 作为固定样例输入。
+
+如果你想快速测试不同案例，可以直接修改 `build_sample_input()` 中的字段，例如：
+
+- `city`
+- `days`
+- `preferences`
+- `travel_style`
+- `start_date`
+
+这是一种面向开发调试的写法，适合快速对比不同城市和偏好下的输出效果。后续如果继续迭代，可以把 `run_graph` 改成支持命令行完整输入。
+
+## 示例场景
+
+当前项目已经测试过多组输入，例如：
+
+- `西安 + 3天 + 历史/美食`
+- `成都 + 2天 + 博物馆/火锅`
+- `广州 + 4天 + 美食/逛街`
+- `武汉 + 2天 + 美食/景点`
+
+这些测试说明系统已经具备：
+
+- 多城市切换能力
+- 多偏好切换能力
+- 不同出行风格下的节奏调整能力
+- 行程生成后的结构化校验能力
+
+## 已知限制
+
+当前版本仍有一些可继续优化的地方：
+
+- `weather.date` 在少数城市案例下可能存在映射不稳定的情况
+- 个别地点虽然结构合法，但仍可能需要进一步加强“必须来自候选 POI”的约束
+- `validation_node` 当前会指出问题，但尚未完全实现“校验失败后自动回到 plan_node 重规划”
+- `run_graph` 仍主要依赖固定样例输入，不是正式接口形态
+- 当前仓库默认输出 JSON，PDF 导出能力尚未单独整理为独立模块
+
+## 适合继续扩展的方向
+
+- 增加 `PDF` 或 `Markdown` 导出
+- 增加“校验失败自动重规划”闭环
+- 限制模型只能使用候选 POI，进一步降低地址幻觉
+- 为 `run_graph` 增加完整命令行参数输入
+- 增加简单前端或 Web 界面
+
+## 安全说明
+
+- 请不要把真实 `.env` 文件上传到公开仓库
+- 请不要在代码或截图中暴露 API Key
+- 建议公开仓库仅保留 `.env.example`
+
+## 项目定位
+
+这是一个面向“多智能体 / LLM 应用工程”方向的后端原型项目，重点不在于做一个成熟旅游产品，而在于展示以下能力：
+
+- LangGraph 工作流设计
+- 大模型与工具调用结合
+- 第三方 API 封装
+- 结构化输出与 Schema 校验
+- 面向真实场景的调试与失败回退机制
+
+如果你正在查看这个仓库，欢迎直接 clone 后按上述步骤配置 API Key 运行。
